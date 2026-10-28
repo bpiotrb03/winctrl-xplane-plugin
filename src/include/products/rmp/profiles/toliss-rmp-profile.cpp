@@ -5,12 +5,15 @@
 #include "product-rmp.h"
 #include "xplane-version.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <limits>
 
 namespace {
     constexpr const char *kTcasModeToggle = "winctrl/rmp/tcas_mode_toggle";
+    constexpr const char *kKnobDepress = "winctrl/rmp/knob_depress";
+    constexpr const char *kTcasSwitchLabels[] = {"STBY", "TA", "TA/RA"};
     constexpr const char *kSquawkCommitTask = "toliss-rmp-squawk-commit";
     constexpr int kSquawkCommitDelayMs = 5000;
 }
@@ -67,6 +70,8 @@ TolissRMPProfile::TolissRMPProfile(ProductRMP *product) : RMPAircraftProfile(pro
         "AirbusFBW/XPDR2",
         "AirbusFBW/XPDR3",
         "AirbusFBW/XPDR4",
+        "AirbusFBW/XPDRPower",
+        "AirbusFBW/XPDRTCASMode",
     };
 
     if (useFrequencyFallback) {
@@ -200,7 +205,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &TolissRMPProfile::buttonDefs()
             {15, {"Knob Large R", std::string("AirbusFBW/") + rmpName() + "FreqUpLrg"}},
             {16, {"Knob Small L", std::string("AirbusFBW/") + rmpName() + "FreqDownSml"}},
             {17, {"Knob Small R", std::string("AirbusFBW/") + rmpName() + "FreqUpSml"}},
-            {18, {"Knob depress", ""}},
+            {18, {"Knob depress", kKnobDepress}},
             {19, {"Switch On", std::string("AirbusFBW/") + rmpName() + "Switch", RMPDatarefType::SET_VALUE, 1}},
             {20, {"Switch Off", std::string("AirbusFBW/") + rmpName() + "Switch", RMPDatarefType::SET_VALUE, 0}},
         };
@@ -221,20 +226,41 @@ void TolissRMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhas
         return;
     }
 
-    if (tcasMode && button->name.starts_with("Knob ")) {
+    if (tcasMode) {
         if (phase != xplm_CommandBegin) {
             return;
         }
 
-        if (button->name == "Knob Large L") {
-            stepSquawk(true, -1);
-        } else if (button->name == "Knob Large R") {
-            stepSquawk(true, 1);
-        } else if (button->name == "Knob Small L") {
-            stepSquawk(false, -1);
-        } else if (button->name == "Knob Small R") {
-            stepSquawk(false, 1);
+        if (button->name == "Flip frequencies") {
+            tcasSwitchSelected = !tcasSwitchSelected;
+            updateDisplays();
+            return;
         }
+
+        if (button->dataref == kKnobDepress) {
+            squawkLowerDigits = !squawkLowerDigits;
+            return;
+        }
+
+        int delta = 0;
+        if (button->name == "Knob Large L" || button->name == "Knob Small L") {
+            delta = -1;
+        } else if (button->name == "Knob Large R" || button->name == "Knob Small R") {
+            delta = 1;
+        }
+
+        if (delta != 0) {
+            if (tcasSwitchSelected) {
+                // A rotary switch with end stops: TA/RA does not wrap back to STBY.
+                setTcasSwitchPosition(std::clamp(tcasSwitchPosition() + delta, 0, 2));
+            } else {
+                stepSquawk(button->name.starts_with("Knob Large"), delta);
+            }
+            return;
+        }
+    }
+
+    if (button->dataref == kKnobDepress) {
         return;
     }
 
@@ -263,13 +289,15 @@ void TolissRMPProfile::updateDisplays() {
     }
 
     if (tcasMode) {
+        std::string code = squawkCode();
         if (squawkEditing) {
-            char code[8];
-            snprintf(code, sizeof(code), "%d%d%d%d", squawkHigh / 8, squawkHigh % 8, squawkLow / 8, squawkLow % 8);
-            product->setDisplayText("TCAS", code);
-        } else {
-            product->setDisplayText("TCAS", squawkCode());
+            code.clear();
+            for (int digit : squawkDigits) {
+                code += static_cast<char>('0' + digit);
+            }
         }
+
+        product->setDisplayText(tcasSwitchSelected ? kTcasSwitchLabels[tcasSwitchPosition()] : "TCAS", code);
         return;
     }
 
@@ -315,12 +343,47 @@ std::string TolissRMPProfile::squawkCode() const {
     return code;
 }
 
+// The A340-600 and A330-900 drive the switch through XPDRTCASMode 0-2, the
+// A319/A320/A321 through XPDRPower, where STBY, TA and TA/RA are 0, 3 and 4.
+static bool usesTcasModeDataref() {
+    std::string icao = Dataref::getInstance()->getCached<std::string>("sim/aircraft/view/acf_ICAO");
+    return icao == "A339" || icao == "A346";
+}
+
+int TolissRMPProfile::tcasSwitchPosition() const {
+    if (usesTcasModeDataref()) {
+        return std::clamp(Dataref::getInstance()->get<int>("AirbusFBW/XPDRTCASMode"), 0, 2);
+    }
+
+    switch (Dataref::getInstance()->get<int>("AirbusFBW/XPDRPower")) {
+        case 3:
+            return 1;
+        case 4:
+            return 2;
+        default:
+            return 0;
+    }
+}
+
+void TolissRMPProfile::setTcasSwitchPosition(int position) {
+    if (usesTcasModeDataref()) {
+        Dataref::getInstance()->set<int>("AirbusFBW/XPDRTCASMode", position);
+    } else {
+        static constexpr int powerValues[] = {0, 3, 4};
+        Dataref::getInstance()->set<int>("AirbusFBW/XPDRPower", powerValues[position]);
+    }
+
+    updateDisplays();
+}
+
 void TolissRMPProfile::setTcasMode(bool enabled) {
     if (!enabled && squawkEditing) {
         commitSquawk();
     }
 
     tcasMode = enabled;
+    tcasSwitchSelected = false;
+    squawkLowerDigits = false;
     product->setLedBrightness(RMPLed::LOAD, enabled ? 255 : 0);
     updateDisplays();
 }
@@ -329,14 +392,9 @@ void TolissRMPProfile::stepSquawk(bool large, int delta) {
     if (!squawkEditing) {
         // Start from the code currently set; a blank or partial entry starts at 0000.
         std::string code = squawkCode();
-        int digits[4] = {0, 0, 0, 0};
-        if (code.length() == 4) {
-            for (int i = 0; i < 4; ++i) {
-                digits[i] = (code[i] >= '0' && code[i] <= '7') ? code[i] - '0' : 0;
-            }
+        for (int i = 0; i < 4; ++i) {
+            squawkDigits[i] = (code.length() == 4 && code[i] >= '0' && code[i] <= '7') ? code[i] - '0' : 0;
         }
-        squawkHigh = digits[0] * 8 + digits[1];
-        squawkLow = digits[2] * 8 + digits[3];
         squawkEditing = true;
 
         // Four presses empty the entry whether CLR removes one digit or the whole code.
@@ -345,9 +403,9 @@ void TolissRMPProfile::stepSquawk(bool large, int delta) {
         }
     }
 
-    // Two octal digits per knob, 00-77, wrapping around.
-    int &pair = large ? squawkHigh : squawkLow;
-    pair = (pair + delta + 64) % 64;
+    // Large knob: thousands (tens after a knob press). Small knob: hundreds (units).
+    int index = (squawkLowerDigits ? 2 : 0) + (large ? 0 : 1);
+    squawkDigits[index] = (squawkDigits[index] + delta + 8) % 8;
 
     AppState::getInstance()->executeAfterDebounced(kSquawkCommitTask, kSquawkCommitDelayMs, this, [this]() {
         commitSquawk();
@@ -362,8 +420,7 @@ void TolissRMPProfile::commitSquawk() {
     }
     squawkEditing = false;
 
-    const int digits[4] = {squawkHigh / 8, squawkHigh % 8, squawkLow / 8, squawkLow % 8};
-    for (int digit : digits) {
+    for (int digit : squawkDigits) {
         std::string command = "AirbusFBW/ATCCodeKey" + std::to_string(digit);
         Dataref::getInstance()->executeCommand(command.c_str());
     }
