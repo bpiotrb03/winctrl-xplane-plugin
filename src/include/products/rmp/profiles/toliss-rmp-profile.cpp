@@ -13,9 +13,18 @@
 namespace {
     constexpr const char *kTcasModeToggle = "winctrl/rmp/tcas_mode_toggle";
     constexpr const char *kKnobDepress = "winctrl/rmp/knob_depress";
-    constexpr const char *kTcasSwitchLabels[] = {"STBY", "TA", "TA/RA"};
+    constexpr const char *kTcasSwitchLabels[] = {"STBY", "TA", "TARA"};
     constexpr const char *kSquawkCommitTask = "toliss-rmp-squawk-commit";
     constexpr int kSquawkCommitDelayMs = 5000;
+
+    // The segment parser right-aligns, so pad both sides to centre in the six digit window.
+    std::string centred(const std::string &text) {
+        if (text.length() >= 6) {
+            return text;
+        }
+        size_t left = (6 - text.length()) / 2;
+        return std::string(left, ' ') + text + std::string(6 - text.length() - left, ' ');
+    }
 }
 
 const char *TolissRMPProfile::rmpName() const {
@@ -297,7 +306,7 @@ void TolissRMPProfile::updateDisplays() {
             }
         }
 
-        product->setDisplayText(tcasSwitchSelected ? kTcasSwitchLabels[tcasSwitchPosition()] : "TCAS", code);
+        product->setDisplayText(centred("TCAS"), centred(tcasSwitchSelected ? kTcasSwitchLabels[tcasSwitchPosition()] : code));
         return;
     }
 
