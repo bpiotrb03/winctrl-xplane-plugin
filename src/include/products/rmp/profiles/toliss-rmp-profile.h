@@ -15,6 +15,18 @@ class TolissRMPProfile : public RMPAircraftProfile {
         const char *swapCommand() const;
         std::string formatFrequency(float megahertz) const;
 
+        // LOAD toggles a transponder mode: the left window shows TCAS, the right
+        // one the squawk. The large knob steps the first two octal digits, the small
+        // knob the last two. The code is keyed into the ATC panel after 5 s idle.
+        bool tcasMode = false;
+        bool squawkEditing = false;
+        int squawkHigh = 0;
+        int squawkLow = 0;
+        std::string squawkCode() const;
+        void setTcasMode(bool enabled);
+        void stepSquawk(bool large, int delta);
+        void commitSquawk();
+
     public:
         TolissRMPProfile(ProductRMP *product);
 

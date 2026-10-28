@@ -1,5 +1,6 @@
 #include "toliss-rmp-profile.h"
 
+#include "appstate.h"
 #include "dataref.h"
 #include "product-rmp.h"
 #include "xplane-version.hpp"
@@ -7,6 +8,12 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+
+namespace {
+    constexpr const char *kTcasModeToggle = "winctrl/rmp/tcas_mode_toggle";
+    constexpr const char *kSquawkCommitTask = "toliss-rmp-squawk-commit";
+    constexpr int kSquawkCommitDelayMs = 5000;
+}
 
 const char *TolissRMPProfile::rmpName() const {
     switch (product->deviceVariant) {
@@ -55,6 +62,11 @@ TolissRMPProfile::TolissRMPProfile(ProductRMP *product) : RMPAircraftProfile(pro
         std::string("AirbusFBW/") + rmpName() + "/ActiveWindowString",
         std::string("AirbusFBW/") + rmpName() + "/StandbyWindowString",
         rmpAvailRef,
+        "AirbusFBW/XPDRString",
+        "AirbusFBW/XPDR1",
+        "AirbusFBW/XPDR2",
+        "AirbusFBW/XPDR3",
+        "AirbusFBW/XPDR4",
     };
 
     if (useFrequencyFallback) {
@@ -174,7 +186,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &TolissRMPProfile::buttonDefs()
             {1, {"VHF 1", std::string("AirbusFBW/VHF1") + sideName()}},
             {2, {"VHF 2", std::string("AirbusFBW/VHF2") + sideName()}},
             {3, {"VHF 3", std::string("AirbusFBW/VHF3") + sideName()}},
-            {4, {"LOAD", ""}},
+            {4, {"LOAD", kTcasModeToggle}},
             {5, {"HF1", std::string("AirbusFBW/HF1") + sideName()}},
             {6, {"HF2", std::string("AirbusFBW/HF2") + sideName()}},
             {7, {"AM", std::string("AirbusFBW/AM") + sideName()}},
@@ -202,6 +214,30 @@ void TolissRMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhas
         return;
     }
 
+    if (button->dataref == kTcasModeToggle) {
+        if (phase == xplm_CommandBegin) {
+            setTcasMode(!tcasMode);
+        }
+        return;
+    }
+
+    if (tcasMode && button->name.starts_with("Knob ")) {
+        if (phase != xplm_CommandBegin) {
+            return;
+        }
+
+        if (button->name == "Knob Large L") {
+            stepSquawk(true, -1);
+        } else if (button->name == "Knob Large R") {
+            stepSquawk(true, 1);
+        } else if (button->name == "Knob Small L") {
+            stepSquawk(false, -1);
+        } else if (button->name == "Knob Small R") {
+            stepSquawk(false, 1);
+        }
+        return;
+    }
+
     auto datarefManager = Dataref::getInstance();
     if (button->datarefType == RMPDatarefType::SET_VALUE) {
         if (phase != xplm_CommandBegin) {
@@ -226,6 +262,17 @@ void TolissRMPProfile::updateDisplays() {
         return;
     }
 
+    if (tcasMode) {
+        if (squawkEditing) {
+            char code[8];
+            snprintf(code, sizeof(code), "%d%d%d%d", squawkHigh / 8, squawkHigh % 8, squawkLow / 8, squawkLow % 8);
+            product->setDisplayText("TCAS", code);
+        } else {
+            product->setDisplayText("TCAS", squawkCode());
+        }
+        return;
+    }
+
     std::string activeHz;
     std::string stbyHz;
 
@@ -247,4 +294,79 @@ void TolissRMPProfile::updateDisplays() {
     }
 
     product->setDisplayText(activeHz, stbyHz);
+}
+
+// Same source as the ToLiss TCAS panel profile: XPDRString where published,
+// otherwise one dataref per digit, least significant first.
+std::string TolissRMPProfile::squawkCode() const {
+    auto datarefManager = Dataref::getInstance();
+    if (datarefManager->exists("AirbusFBW/XPDRString")) {
+        return datarefManager->getCached<std::string>("AirbusFBW/XPDRString");
+    }
+
+    std::string code;
+    for (int digit = 4; digit >= 1; --digit) {
+        const std::string name = "AirbusFBW/XPDR" + std::to_string(digit);
+        const int value = datarefManager->getCached<int>(name.c_str());
+
+        code += (value >= 0 && value <= 9) ? static_cast<char>('0' + value) : ' ';
+    }
+
+    return code;
+}
+
+void TolissRMPProfile::setTcasMode(bool enabled) {
+    if (!enabled && squawkEditing) {
+        commitSquawk();
+    }
+
+    tcasMode = enabled;
+    product->setLedBrightness(RMPLed::LOAD, enabled ? 255 : 0);
+    updateDisplays();
+}
+
+void TolissRMPProfile::stepSquawk(bool large, int delta) {
+    if (!squawkEditing) {
+        // Start from the code currently set; a blank or partial entry starts at 0000.
+        std::string code = squawkCode();
+        int digits[4] = {0, 0, 0, 0};
+        if (code.length() == 4) {
+            for (int i = 0; i < 4; ++i) {
+                digits[i] = (code[i] >= '0' && code[i] <= '7') ? code[i] - '0' : 0;
+            }
+        }
+        squawkHigh = digits[0] * 8 + digits[1];
+        squawkLow = digits[2] * 8 + digits[3];
+        squawkEditing = true;
+
+        // Four presses empty the entry whether CLR removes one digit or the whole code.
+        for (int i = 0; i < 4; ++i) {
+            Dataref::getInstance()->executeCommand("AirbusFBW/ATCCodeKeyCLR");
+        }
+    }
+
+    // Two octal digits per knob, 00-77, wrapping around.
+    int &pair = large ? squawkHigh : squawkLow;
+    pair = (pair + delta + 64) % 64;
+
+    AppState::getInstance()->executeAfterDebounced(kSquawkCommitTask, kSquawkCommitDelayMs, this, [this]() {
+        commitSquawk();
+    });
+
+    updateDisplays();
+}
+
+void TolissRMPProfile::commitSquawk() {
+    if (!squawkEditing) {
+        return;
+    }
+    squawkEditing = false;
+
+    const int digits[4] = {squawkHigh / 8, squawkHigh % 8, squawkLow / 8, squawkLow % 8};
+    for (int digit : digits) {
+        std::string command = "AirbusFBW/ATCCodeKey" + std::to_string(digit);
+        Dataref::getInstance()->executeCommand(command.c_str());
+    }
+
+    updateDisplays();
 }
