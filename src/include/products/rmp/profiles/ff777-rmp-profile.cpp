@@ -3,6 +3,7 @@
 #include "appstate.h"
 #include "dataref.h"
 #include "product-rmp.h"
+#include "rmp-tcas-config.h"
 
 #include <algorithm>
 #include <cmath>
@@ -150,7 +151,7 @@ void FF777RMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase
     }
 
     if (button->dataref == kTcasModeToggle) {
-        if (phase == xplm_CommandBegin) {
+        if (phase == xplm_CommandBegin && (tcasMode || rmpTcasEnabled("ff777"))) {
             setTcasMode(!tcasMode);
         }
         return;

@@ -11,6 +11,23 @@ class ZiboRMPProfile : public RMPAircraftProfile {
         std::vector<std::string> _displayDatarefs;
         const char *rtpName() const;
 
+        // LOAD toggles a transponder mode: the left window shows TCAS, the right
+        // one the squawk. The large knob steps the thousands, the small knob the
+        // hundreds; a knob press switches them to tens and units. The code is set
+        // on the transponder after 5 s idle. The swap key shows the transponder
+        // mode switch on the right window, stepped without wrapping.
+        bool tcasMode = false;
+        bool tcasSwitchSelected = false;
+        bool squawkEditing = false;
+        bool squawkLowerDigits = false;
+        int squawkDigits[4] = {0, 0, 0, 0};
+        std::string squawkCode() const;
+        int tcasSwitchPosition() const;
+        void setTcasSwitchPosition(int position);
+        void setTcasMode(bool enabled);
+        void stepSquawk(bool large, int delta);
+        void commitSquawk();
+
     public:
         ZiboRMPProfile(ProductRMP *product);
 

@@ -3,6 +3,7 @@
 #include "appstate.h"
 #include "dataref.h"
 #include "product-rmp.h"
+#include "rmp-tcas-config.h"
 #include "xplane-version.hpp"
 
 #include <algorithm>
@@ -229,7 +230,7 @@ void TolissRMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhas
     }
 
     if (button->dataref == kTcasModeToggle) {
-        if (phase == xplm_CommandBegin) {
+        if (phase == xplm_CommandBegin && (tcasMode || rmpTcasEnabled("toliss"))) {
             setTcasMode(!tcasMode);
         }
         return;

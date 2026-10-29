@@ -1,8 +1,12 @@
 #include "zibo-rmp-profile.h"
 
+#include "appstate.h"
 #include "dataref.h"
 #include "product-rmp.h"
+#include "rmp-tcas-config.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -10,6 +14,32 @@
 #include <vector>
 
 namespace {
+    constexpr const char *kTcasModeToggle = "winctrl/rmp/tcas_mode_toggle";
+    constexpr const char *kKnobDepress = "winctrl/rmp/knob_depress";
+    constexpr const char *kSquawkDataref = "sim/cockpit2/radios/actuators/transponder_code";
+    constexpr const char *kModeSwitchDataref = "laminar/B738/knob/transponder_pos";
+    // Mode switch positions from STBY on; transponder_pos counts TEST as 0 before them.
+    constexpr const char *kTcasSwitchLabels[] = {"STBY", "ALTOFF", "XPNDR", "TA", "TARA"};
+    constexpr const char *kTcasSwitchCommands[] = {
+        "laminar/B738/knob/transponder_stby",
+        "laminar/B738/knob/transponder_altoff",
+        "laminar/B738/knob/transponder_alton",
+        "laminar/B738/knob/transponder_ta",
+        "laminar/B738/knob/transponder_tara",
+    };
+    constexpr int kTcasSwitchPositions = 5;
+    constexpr const char *kSquawkCommitTask = "zibo-rmp-squawk-commit";
+    constexpr int kSquawkCommitDelayMs = 5000;
+
+    // The segment parser right-aligns, so pad both sides to centre in the six digit window.
+    std::string centred(const std::string &text) {
+        if (text.length() >= 6) {
+            return text;
+        }
+        size_t left = (6 - text.length()) / 2;
+        return std::string(left, ' ') + text + std::string(6 - text.length() - left, ' ');
+    }
+
     // VHF1/VHF2 use the standard 8.33 datarefs where the value is the frequency in
     // kHz (e.g. 122800 -> "122.800").
     std::string formatVhfFreq(int hz833) {
@@ -60,6 +90,8 @@ ZiboRMPProfile::ZiboRMPProfile(ProductRMP *product) : RMPAircraftProfile(product
         "laminar/B738/comm/com3/act_freq_kHz",
         "laminar/B738/comm/com3/stdby_freq_MHz",
         "laminar/B738/comm/com3/stdby_freq_kHz",
+        kSquawkDataref,
+        kModeSwitchDataref,
     };
 
     Dataref::getInstance()->monitorExistingDataref<std::vector<float>>("laminar/B738/electric/panel_brightness", [product](const std::vector<float> &brightness) {
@@ -120,7 +152,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &ZiboRMPProfile::buttonDefs() c
             {1, {"VHF 1", p + "vhf_1/sel_switch"}},
             {2, {"VHF 2", p + "vhf_2/sel_switch"}},
             {3, {"VHF 3", p + "vhf_3/sel_switch"}},
-            {4, {"LOAD", ""}},
+            {4, {"LOAD", kTcasModeToggle}},
             {5, {"HF1", p + "hf_1/sel_switch"}},
             {6, {"HF2", p + "hf_2/sel_switch"}},
             {7, {"AM", p + "am/sel_switch"}},
@@ -135,7 +167,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &ZiboRMPProfile::buttonDefs() c
             {15, {"Knob Large R", p + "freq_MHz/sel_dial_up"}},
             {16, {"Knob Small L", p + "freq_khz/sel_dial_dn"}},
             {17, {"Knob Small R", p + "freq_khz/sel_dial_up"}},
-            {18, {"Knob depress", ""}},
+            {18, {"Knob depress", kKnobDepress}},
             // The 737 panel has no separate ON; selecting a radio re-powers it.
             {19, {"Switch On", ""}},
             {20, {"Switch Off", p + "off_switch"}},
@@ -147,6 +179,51 @@ const std::unordered_map<uint16_t, RMPButtonDef> &ZiboRMPProfile::buttonDefs() c
 
 void ZiboRMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase phase) {
     if (!button || button->dataref.empty() || phase == xplm_CommandContinue) {
+        return;
+    }
+
+    if (button->dataref == kTcasModeToggle) {
+        if (phase == xplm_CommandBegin && (tcasMode || rmpTcasEnabled("zibo"))) {
+            setTcasMode(!tcasMode);
+        }
+        return;
+    }
+
+    if (tcasMode) {
+        if (phase != xplm_CommandBegin) {
+            return;
+        }
+
+        if (button->name == "Flip frequencies") {
+            tcasSwitchSelected = !tcasSwitchSelected;
+            updateDisplays();
+            return;
+        }
+
+        if (button->dataref == kKnobDepress) {
+            squawkLowerDigits = !squawkLowerDigits;
+            return;
+        }
+
+        int delta = 0;
+        if (button->name == "Knob Large L" || button->name == "Knob Small L") {
+            delta = -1;
+        } else if (button->name == "Knob Large R" || button->name == "Knob Small R") {
+            delta = 1;
+        }
+
+        if (delta != 0) {
+            if (tcasSwitchSelected) {
+                // A rotary switch with end stops: TA/RA does not wrap back to STBY.
+                setTcasSwitchPosition(std::clamp(tcasSwitchPosition() + delta, 0, kTcasSwitchPositions - 1));
+            } else {
+                stepSquawk(button->name.starts_with("Knob Large"), delta);
+            }
+            return;
+        }
+    }
+
+    if (button->dataref == kKnobDepress) {
         return;
     }
 
@@ -178,6 +255,19 @@ void ZiboRMPProfile::updateDisplays() {
         return;
     }
 
+    if (tcasMode) {
+        std::string code = squawkCode();
+        if (squawkEditing) {
+            code.clear();
+            for (int digit : squawkDigits) {
+                code += static_cast<char>('0' + digit);
+            }
+        }
+
+        product->setDisplayText(centred("TCAS"), centred(tcasSwitchSelected ? kTcasSwitchLabels[tcasSwitchPosition()] : code));
+        return;
+    }
+
     std::string active = "      ";
     std::string stby = "      ";
 
@@ -194,4 +284,72 @@ void ZiboRMPProfile::updateDisplays() {
     // HF/AM modes have no simple frequency source; the display stays blank.
 
     product->setDisplayText(active, stby);
+}
+
+std::string ZiboRMPProfile::squawkCode() const {
+    int code = std::clamp(Dataref::getInstance()->getCached<int>(kSquawkDataref), 0, 7777);
+
+    char buffer[8];
+    snprintf(buffer, sizeof(buffer), "%04d", code);
+    return buffer;
+}
+
+int ZiboRMPProfile::tcasSwitchPosition() const {
+    int position = static_cast<int>(std::lround(Dataref::getInstance()->getCached<float>(kModeSwitchDataref))) - 1;
+    return std::clamp(position, 0, kTcasSwitchPositions - 1);
+}
+
+void ZiboRMPProfile::setTcasSwitchPosition(int position) {
+    Dataref::getInstance()->executeCommand(kTcasSwitchCommands[position]);
+
+    updateDisplays();
+}
+
+void ZiboRMPProfile::setTcasMode(bool enabled) {
+    if (!enabled && squawkEditing) {
+        commitSquawk();
+    }
+
+    tcasMode = enabled;
+    tcasSwitchSelected = false;
+    squawkLowerDigits = false;
+    product->setLedBrightness(RMPLed::LOAD, enabled ? 255 : 0);
+    updateDisplays();
+}
+
+void ZiboRMPProfile::stepSquawk(bool large, int delta) {
+    if (!squawkEditing) {
+        // Start from the code currently set.
+        std::string code = squawkCode();
+        for (int i = 0; i < 4; ++i) {
+            squawkDigits[i] = (code[i] >= '0' && code[i] <= '7') ? code[i] - '0' : 0;
+        }
+        squawkEditing = true;
+    }
+
+    // Large knob: thousands (tens after a knob press). Small knob: hundreds (units).
+    int index = (squawkLowerDigits ? 2 : 0) + (large ? 0 : 1);
+    squawkDigits[index] = (squawkDigits[index] + delta + 8) % 8;
+
+    AppState::getInstance()->executeAfterDebounced(kSquawkCommitTask, kSquawkCommitDelayMs, this, [this]() {
+        commitSquawk();
+    });
+
+    updateDisplays();
+}
+
+// The Zibo reads its code from the default transponder, as the WinWing TCAS panel profile sets it.
+void ZiboRMPProfile::commitSquawk() {
+    if (!squawkEditing) {
+        return;
+    }
+    squawkEditing = false;
+
+    int code = 0;
+    for (int digit : squawkDigits) {
+        code = code * 10 + digit;
+    }
+    Dataref::getInstance()->set<int>(kSquawkDataref, code);
+
+    updateDisplays();
 }
