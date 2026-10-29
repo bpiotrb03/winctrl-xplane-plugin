@@ -12,7 +12,6 @@
 #include <limits>
 
 namespace {
-    constexpr const char *kTcasModeToggle = "winctrl/rmp/tcas_mode_toggle";
     constexpr const char *kKnobDepress = "winctrl/rmp/knob_depress";
     constexpr const char *kTcasSwitchLabels[] = {"STBY", "TA", "TARA"};
     constexpr const char *kSquawkCommitTask = "toliss-rmp-squawk-commit";
@@ -65,6 +64,8 @@ const char *TolissRMPProfile::swapCommand() const {
 }
 
 TolissRMPProfile::TolissRMPProfile(ProductRMP *product) : RMPAircraftProfile(product) {
+    tcasSettings = loadRmpTcasSettings("toliss");
+
     std::string rmpAvailRef = std::string("AirbusFBW/") + rmpName() + "Available";
 
     // ToLiss builds predating the window strings (A321 v1.3.2 and earlier, XP11)
@@ -201,7 +202,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &TolissRMPProfile::buttonDefs()
             {1, {"VHF 1", std::string("AirbusFBW/VHF1") + sideName()}},
             {2, {"VHF 2", std::string("AirbusFBW/VHF2") + sideName()}},
             {3, {"VHF 3", std::string("AirbusFBW/VHF3") + sideName()}},
-            {4, {"LOAD", kTcasModeToggle}},
+            {4, {"LOAD", ""}},
             {5, {"HF1", std::string("AirbusFBW/HF1") + sideName()}},
             {6, {"HF2", std::string("AirbusFBW/HF2") + sideName()}},
             {7, {"AM", std::string("AirbusFBW/AM") + sideName()}},
@@ -225,14 +226,19 @@ const std::unordered_map<uint16_t, RMPButtonDef> &TolissRMPProfile::buttonDefs()
 }
 
 void TolissRMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase phase) {
-    if (!button || button->dataref.empty() || phase == xplm_CommandContinue) {
+    if (!button || phase == xplm_CommandContinue) {
         return;
     }
 
-    if (button->dataref == kTcasModeToggle) {
-        if (phase == xplm_CommandBegin && (tcasMode || rmpTcasEnabled("toliss"))) {
+    // The key picked in the installer toggles the mode and loses its radio function.
+    if (tcasSettings.enabled && button->name == tcasSettings.buttonName) {
+        if (phase == xplm_CommandBegin) {
             setTcasMode(!tcasMode);
         }
+        return;
+    }
+
+    if (button->dataref.empty()) {
         return;
     }
 
@@ -402,7 +408,7 @@ void TolissRMPProfile::setTcasMode(bool enabled) {
     tcasMode = enabled;
     tcasSwitchSelected = false;
     squawkLowerDigits = false;
-    product->setLedBrightness(RMPLed::LOAD, enabled ? 255 : 0);
+    product->setLedBrightness(tcasSettings.led, enabled ? 255 : 0);
     updateDisplays();
 }
 

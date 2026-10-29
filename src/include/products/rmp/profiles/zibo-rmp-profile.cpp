@@ -14,7 +14,6 @@
 #include <vector>
 
 namespace {
-    constexpr const char *kTcasModeToggle = "winctrl/rmp/tcas_mode_toggle";
     constexpr const char *kKnobDepress = "winctrl/rmp/knob_depress";
     constexpr const char *kSquawkDataref = "sim/cockpit2/radios/actuators/transponder_code";
     constexpr const char *kModeSwitchDataref = "laminar/B738/knob/transponder_pos";
@@ -74,6 +73,8 @@ const char *ZiboRMPProfile::rtpName() const {
 }
 
 ZiboRMPProfile::ZiboRMPProfile(ProductRMP *product) : RMPAircraftProfile(product) {
+    tcasSettings = loadRmpTcasSettings("b737");
+
     std::string statusBase = std::string("laminar/B738/comm/rtp_") + rtpName() + "/";
 
     _displayDatarefs = {
@@ -106,7 +107,15 @@ ZiboRMPProfile::ZiboRMPProfile(ProductRMP *product) : RMPAircraftProfile(product
     },
         this);
 
-    Dataref::getInstance()->monitorExistingDataref<bool>("sim/cockpit/electrical/avionics_on", [this](bool poweredOn) {
+    Dataref::getInstance()->monitorExistingDataref<bool>("sim/cockpit/electrical/avionics_on", [this, product](bool poweredOn) {
+        // The default 737 has no panel_brightness, so light the panel with the avionics.
+        if (!Dataref::getInstance()->exists("laminar/B738/electric/panel_brightness")) {
+            uint8_t brightness = poweredOn ? 255 : 0;
+            product->setLedBrightness(RMPLed::BACKLIGHT, brightness);
+            product->setLedBrightness(RMPLed::LCD_BRIGHTNESS, brightness);
+            product->setLedBrightness(RMPLed::OVERALL_LEDS_BRIGHTNESS, brightness);
+            product->forceStateSync();
+        }
         Dataref::getInstance()->executeChangedCallbacksForDataref("laminar/B738/electric/panel_brightness");
         updateDisplays();
     },
@@ -133,8 +142,11 @@ ZiboRMPProfile::ZiboRMPProfile(ProductRMP *product) : RMPAircraftProfile(product
     }
 }
 
+// The Zibo and its Level Up build carry zibomod; the default Laminar 737 shares
+// the same radio tuning panel and transponder datarefs without it.
 bool ZiboRMPProfile::IsEligible() {
-    return Dataref::getInstance()->exists("zibomod/Aircraft_Path");
+    return Dataref::getInstance()->exists("zibomod/Aircraft_Path") ||
+           (Dataref::getInstance()->exists("laminar/B738/comm/rtp_L/off_status") && Dataref::getInstance()->exists("laminar/B738/knob/transponder_pos"));
 }
 
 const std::vector<std::string> &ZiboRMPProfile::displayDatarefs() const {
@@ -152,7 +164,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &ZiboRMPProfile::buttonDefs() c
             {1, {"VHF 1", p + "vhf_1/sel_switch"}},
             {2, {"VHF 2", p + "vhf_2/sel_switch"}},
             {3, {"VHF 3", p + "vhf_3/sel_switch"}},
-            {4, {"LOAD", kTcasModeToggle}},
+            {4, {"LOAD", ""}},
             {5, {"HF1", p + "hf_1/sel_switch"}},
             {6, {"HF2", p + "hf_2/sel_switch"}},
             {7, {"AM", p + "am/sel_switch"}},
@@ -178,14 +190,19 @@ const std::unordered_map<uint16_t, RMPButtonDef> &ZiboRMPProfile::buttonDefs() c
 }
 
 void ZiboRMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase phase) {
-    if (!button || button->dataref.empty() || phase == xplm_CommandContinue) {
+    if (!button || phase == xplm_CommandContinue) {
         return;
     }
 
-    if (button->dataref == kTcasModeToggle) {
-        if (phase == xplm_CommandBegin && (tcasMode || rmpTcasEnabled("zibo"))) {
+    // The key picked in the installer toggles the mode and loses its radio function.
+    if (tcasSettings.enabled && button->name == tcasSettings.buttonName) {
+        if (phase == xplm_CommandBegin) {
             setTcasMode(!tcasMode);
         }
+        return;
+    }
+
+    if (button->dataref.empty()) {
         return;
     }
 
@@ -305,8 +322,17 @@ int ZiboRMPProfile::tcasSwitchPosition() const {
     return std::clamp(position, 0, kTcasSwitchPositions - 1);
 }
 
+// The Zibo has a command per position; the default 737 only steps the knob.
 void ZiboRMPProfile::setTcasSwitchPosition(int position) {
-    Dataref::getInstance()->executeCommand(kTcasSwitchCommands[position]);
+    if (XPLMFindCommand(kTcasSwitchCommands[position])) {
+        Dataref::getInstance()->executeCommand(kTcasSwitchCommands[position]);
+    } else {
+        int steps = position - tcasSwitchPosition();
+        const char *command = steps > 0 ? "laminar/B738/knob/transponder_mode_up" : "laminar/B738/knob/transponder_mode_dn";
+        for (int n = 0; n < std::abs(steps); ++n) {
+            Dataref::getInstance()->executeCommand(command);
+        }
+    }
 
     updateDisplays();
 }
@@ -319,7 +345,7 @@ void ZiboRMPProfile::setTcasMode(bool enabled) {
     tcasMode = enabled;
     tcasSwitchSelected = false;
     squawkLowerDigits = false;
-    product->setLedBrightness(RMPLed::LOAD, enabled ? 255 : 0);
+    product->setLedBrightness(tcasSettings.led, enabled ? 255 : 0);
     updateDisplays();
 }
 

@@ -17,12 +17,13 @@ class FF777RMPProfile : public RMPAircraftProfile {
         const char *sideName() const;
         const char *swapCommand() const;
 
-        // LOAD toggles a transponder mode: the left window shows TCAS, the right
+        // LOAD (or the key picked in the installer) toggles a transponder mode: the left window shows TCAS, the right
         // one the squawk. The large knob steps the thousands, the small knob the
         // hundreds; a knob press switches them to tens and units. The code is dialled
         // into the ATC panel's digit knobs after 3 s idle. A short press of the swap key shows the
         // transponder mode switch on the right window, stepped without wrapping.
         // Holding the swap key for 3 s in this mode sends the transponder IDENT.
+        RMPTcasSettings tcasSettings;
         bool tcasMode = false;
         bool tcasSwitchSelected = false;
         RMPHoldButton swapHold;

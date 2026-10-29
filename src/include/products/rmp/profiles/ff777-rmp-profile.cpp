@@ -10,7 +10,6 @@
 #include <cstdio>
 
 namespace {
-    constexpr const char *kTcasModeToggle = "winctrl/rmp/tcas_mode_toggle";
     constexpr const char *kKnobDepress = "winctrl/rmp/knob_depress";
     constexpr const char *kSquawkDataref = "sim/cockpit/radios/transponder_code";
     constexpr const char *kModeSwitchDataref = "1-sim/ckpt/xpndrModeSwitch/anim";
@@ -69,6 +68,8 @@ const char *FF777RMPProfile::swapCommand() const {
 }
 
 FF777RMPProfile::FF777RMPProfile(ProductRMP *product) : RMPAircraftProfile(product) {
+    tcasSettings = loadRmpTcasSettings("ff777");
+
     _displayDatarefs = {
         std::string("1-sim/output/radio/") + sideName() + "Active",
         std::string("1-sim/output/radio/") + sideName() + "Stby",
@@ -122,7 +123,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &FF777RMPProfile::buttonDefs() 
             {1, {"VHF 1", std::string("1-sim/command/rad") + rmpName() + "LvhfButton_button"}},
             {2, {"VHF 2", std::string("1-sim/command/rad") + rmpName() + "RvhfButton_button"}},
             {3, {"VHF 3", std::string("1-sim/command/rad") + rmpName() + "CvhfButton_button"}},
-            {4, {"LOAD", kTcasModeToggle}},
+            {4, {"LOAD", ""}},
             {5, {"HF1", std::string("1-sim/command/rad") + rmpName() + "LhfButton_button"}},
             {6, {"HF2", std::string("1-sim/command/rad") + rmpName() + "RhfButton_button"}},
             {7, {"AM", std::string("1-sim/command/rad") + rmpName() + "amButton_button"}},
@@ -146,14 +147,19 @@ const std::unordered_map<uint16_t, RMPButtonDef> &FF777RMPProfile::buttonDefs() 
 }
 
 void FF777RMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase phase) {
-    if (!button || button->dataref.empty() || phase == xplm_CommandContinue) {
+    if (!button || phase == xplm_CommandContinue) {
         return;
     }
 
-    if (button->dataref == kTcasModeToggle) {
-        if (phase == xplm_CommandBegin && (tcasMode || rmpTcasEnabled("ff777"))) {
+    // The key picked in the installer toggles the mode and loses its radio function.
+    if (tcasSettings.enabled && button->name == tcasSettings.buttonName) {
+        if (phase == xplm_CommandBegin) {
             setTcasMode(!tcasMode);
         }
+        return;
+    }
+
+    if (button->dataref.empty()) {
         return;
     }
 
@@ -295,7 +301,7 @@ void FF777RMPProfile::setTcasMode(bool enabled) {
     tcasMode = enabled;
     tcasSwitchSelected = false;
     squawkLowerDigits = false;
-    product->setLedBrightness(RMPLed::LOAD, enabled ? 255 : 0);
+    product->setLedBrightness(tcasSettings.led, enabled ? 255 : 0);
     updateDisplays();
 }
 

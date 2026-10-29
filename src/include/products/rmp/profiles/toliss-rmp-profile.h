@@ -16,12 +16,13 @@ class TolissRMPProfile : public RMPAircraftProfile {
         const char *swapCommand() const;
         std::string formatFrequency(float megahertz) const;
 
-        // LOAD toggles a transponder mode: the left window shows TCAS, the right
+        // LOAD (or the key picked in the installer) toggles a transponder mode: the left window shows TCAS, the right
         // one the squawk. The large knob steps the thousands, the small knob the
         // hundreds; a knob press switches them to tens and units. The code is keyed
         // into the ATC panel after 3 s idle. A short press of the swap key shows the TCAS mode switch
         // (STBY, TA, TA/RA) on the right window, stepped by either knob without wrapping.
         // Holding the swap key for 3 s in this mode sends the transponder IDENT.
+        RMPTcasSettings tcasSettings;
         bool tcasMode = false;
         bool tcasSwitchSelected = false;
         RMPHoldButton swapHold;

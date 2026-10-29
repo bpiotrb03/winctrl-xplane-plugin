@@ -23,21 +23,22 @@ ShowInstDetails show
 !define PLUGIN_DIR "$INSTDIR\Resources\plugins\winctrl"
 
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TEXT "Instalator podmienia plugin WINCTRL na wersję z trybem TCAS na RMP3 (ToLiSS, FlightFactor 777 i Zibo 737):$\r$\n$\r$\nLOAD włącza/wyłącza tryb TCAS. Lewy wyświetlacz pokazuje TCAS, prawy squawk. Duże pokrętło zmienia tysiące, małe setki; wciśnięcie pokrętła przełącza na dziesiątki i jedynki. Strzałki pokazują przełącznik trybu TCAS, a przytrzymanie strzałek przez 3 s wysyła IDENT. Kod trafia do samolotu po 3 s bez ruchu pokrętłem.$\r$\n$\r$\nOryginalny winctrl.xpl zostanie zachowany jako winctrl.xpl.bak.$\r$\n$\r$\nZamknij X-Plane przed instalacją."
-!define MUI_DIRECTORYPAGE_TEXT_TOP "Wskaż główny folder X-Plane 12 (ten, w którym jest X-Plane.exe)."
+!define MUI_WELCOMEPAGE_TEXT "This installer replaces the WINCTRL plugin with a build that adds a TCAS/squawk mode to the WinWing RMP3 (ToLiSS, FlightFactor 777 and 737).$\r$\n$\r$\nA key of your choice (LOAD by default) toggles the TCAS mode. The left window shows TCAS, the right one the squawk. The large knob sets the thousands, the small knob the hundreds; pressing the knob switches to tens and units. The arrows show the TCAS mode switch; holding them for 3 s sends IDENT. The code is set in the aircraft 3 s after the last knob turn.$\r$\n$\r$\nThe original winctrl.xpl is kept as winctrl.xpl.bak.$\r$\n$\r$\nClose X-Plane before installing."
+!define MUI_DIRECTORYPAGE_TEXT_TOP "Select the X-Plane 12 root folder (the one containing X-Plane.exe)."
 !define MUI_COMPONENTSPAGE_NODESC
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_DIRECTORY
 Page custom AircraftPage AircraftPageLeave
+Page custom ButtonPage ButtonPageLeave
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
-!insertmacro MUI_LANGUAGE "Polish"
+!insertmacro MUI_LANGUAGE "English"
 
 !macro SetUpdaterLocked DIR VALUE
     ${If} ${FileExists} "${DIR}\skunkcrafts_updater.cfg"
@@ -117,10 +118,10 @@ Var CheckZibo
 !macroend
 
 Function AircraftPage
-    !insertmacro MUI_HEADER_TEXT "Wybór samolotów" "Samoloty, w których LOAD na RMP3 włącza tryb TCAS."
+    !insertmacro MUI_HEADER_TEXT "Aircraft" "Aircraft in which the RMP3 TCAS mode is available."
     !insertmacro LoadAircraftChoice $AircraftToliss "toliss"
     !insertmacro LoadAircraftChoice $AircraftFF777 "ff777"
-    !insertmacro LoadAircraftChoice $AircraftZibo "zibo"
+    !insertmacro LoadAircraftChoice $AircraftZibo "b737"
 
     nsDialogs::Create 1018
     Pop $0
@@ -128,7 +129,7 @@ Function AircraftPage
         Abort
     ${EndIf}
 
-    ${NSD_CreateLabel} 0 0 100% 24u "Zaznacz samoloty, w których przycisk LOAD ma przełączać RMP3 w tryb TCAS/squawk. W pozostałych LOAD działa jak dotychczas."
+    ${NSD_CreateLabel} 0 0 100% 24u "Tick the aircraft in which the RMP3 TCAS/squawk mode should be available. In the others the RMP keeps working as before."
     Pop $0
 
     ${NSD_CreateCheckbox} 10u 32u 100% 12u "ToLiSS (A319, A320, A321, A330-900, A340-600)"
@@ -139,7 +140,7 @@ Function AircraftPage
     Pop $CheckFF777
     ${NSD_SetState} $CheckFF777 $AircraftFF777
 
-    ${NSD_CreateCheckbox} 10u 68u 100% 12u "Zibo 737-800 (i pochodne)"
+    ${NSD_CreateCheckbox} 10u 68u 100% 12u "737 (Zibo, Level Up, default Laminar 737-800)"
     Pop $CheckZibo
     ${NSD_SetState} $CheckZibo $AircraftZibo
 
@@ -152,17 +153,65 @@ Function AircraftPageLeave
     ${NSD_GetState} $CheckZibo $AircraftZibo
 FunctionEnd
 
+Var TcasButton
+Var ButtonList
+
+Function ButtonPage
+    !insertmacro MUI_HEADER_TEXT "TCAS mode key" "The RMP3 key that toggles the TCAS mode."
+    ${If} $TcasButton == ""
+        ReadINIStr $TcasButton "${PLUGIN_DIR}\rmp-tcas.ini" "rmp" "tcas_button"
+        ${If} $TcasButton == ""
+            StrCpy $TcasButton "LOAD"
+        ${EndIf}
+    ${EndIf}
+
+    nsDialogs::Create 1018
+    Pop $0
+    ${If} $0 == error
+        Abort
+    ${EndIf}
+
+    ${NSD_CreateLabel} 0 0 100% 36u "Choose the key that switches the RMP3 into the TCAS/squawk mode and back. While the TCAS mode is available, that key loses its normal radio function, so pick one you do not use (LOAD has none on most aircraft)."
+    Pop $0
+
+    ${NSD_CreateDropList} 10u 44u 120u 140u ""
+    Pop $ButtonList
+    ${NSD_CB_AddString} $ButtonList "LOAD"
+    ${NSD_CB_AddString} $ButtonList "VHF1"
+    ${NSD_CB_AddString} $ButtonList "VHF2"
+    ${NSD_CB_AddString} $ButtonList "VHF3"
+    ${NSD_CB_AddString} $ButtonList "HF1"
+    ${NSD_CB_AddString} $ButtonList "HF2"
+    ${NSD_CB_AddString} $ButtonList "AM"
+    ${NSD_CB_AddString} $ButtonList "NAV"
+    ${NSD_CB_AddString} $ButtonList "VOR"
+    ${NSD_CB_AddString} $ButtonList "ILS"
+    ${NSD_CB_AddString} $ButtonList "GLS"
+    ${NSD_CB_AddString} $ButtonList "MLS"
+    ${NSD_CB_AddString} $ButtonList "ADF"
+    ${NSD_CB_SelectString} $ButtonList $TcasButton
+
+    nsDialogs::Show
+FunctionEnd
+
+Function ButtonPageLeave
+    ${NSD_GetText} $ButtonList $TcasButton
+    ${If} $TcasButton == ""
+        StrCpy $TcasButton "LOAD"
+    ${EndIf}
+FunctionEnd
+
 Function .onVerifyInstDir
     IfFileExists "$INSTDIR\X-Plane.exe" +2
         Abort
 FunctionEnd
 
-Section "Plugin WINCTRL z trybem TCAS (wymagane)" SecPlugin
+Section "WINCTRL plugin with TCAS mode (required)" SecPlugin
     SectionIn RO
 
     ${If} ${FileExists} "${PLUGIN_DIR}\win_x64\winctrl.xpl"
     ${AndIfNot} ${FileExists} "${PLUGIN_DIR}\win_x64\winctrl.xpl.bak"
-        DetailPrint "Kopia oryginału: winctrl.xpl.bak"
+        DetailPrint "Backing up the original as winctrl.xpl.bak"
         CopyFiles /SILENT "${PLUGIN_DIR}\win_x64\winctrl.xpl" "${PLUGIN_DIR}\win_x64\winctrl.xpl.bak"
     ${EndIf}
 
@@ -178,12 +227,19 @@ Section "Plugin WINCTRL z trybem TCAS (wymagane)" SecPlugin
 
     !insertmacro SaveAircraftChoice $AircraftToliss "toliss"
     !insertmacro SaveAircraftChoice $AircraftFF777 "ff777"
-    !insertmacro SaveAircraftChoice $AircraftZibo "zibo"
+    !insertmacro SaveAircraftChoice $AircraftZibo "b737"
+
+    ${If} $TcasButton == ""
+        StrCpy $TcasButton "LOAD"
+    ${EndIf}
+    WriteINIStr "${PLUGIN_DIR}\rmp-tcas.ini" "rmp" "tcas_button" "$TcasButton"
+    ; Older test builds stored the 737 choice under "zibo".
+    DeleteINIStr "${PLUGIN_DIR}\rmp-tcas.ini" "aircraft" "zibo"
 
     WriteUninstaller "${PLUGIN_DIR}\uninstall-winctrl-tcas.exe"
 SectionEnd
 
-Section "Zablokuj automatyczne aktualizacje WINCTRL (Skunkcrafts)" SecLock
+Section "Block automatic WINCTRL updates (Skunkcrafts)" SecLock
     ; Without this an update of WINCTRL overwrites the TCAS build.
     SetOutPath "${PLUGIN_DIR}"
     !insertmacro SetUpdaterLocked "${PLUGIN_DIR}" "true"
@@ -193,7 +249,7 @@ Section "Uninstall"
     ${If} ${FileExists} "$INSTDIR\win_x64\winctrl.xpl.bak"
         Delete "$INSTDIR\win_x64\winctrl.xpl"
         Rename "$INSTDIR\win_x64\winctrl.xpl.bak" "$INSTDIR\win_x64\winctrl.xpl"
-        DetailPrint "Przywrócono oryginalny winctrl.xpl"
+        DetailPrint "Restored the original winctrl.xpl"
     ${EndIf}
     !insertmacro SetUpdaterLocked "$INSTDIR" "false"
     Delete "$INSTDIR\rmp-tcas.ini"
