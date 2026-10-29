@@ -368,11 +368,9 @@ void ProductRMP::didReceiveButton(uint16_t hardwareButtonIndex, bool pressed, ui
         return;
     }
 
+    // Keys without a dataref still reach the profile: the RMP TCAS mode can be put on any of them.
+    // Every profile ignores an empty dataref itself.
     const RMPButtonDef *buttonDef = &it->second;
-
-    if (buttonDef->dataref.empty()) {
-        return;
-    }
 
     bool pressedButtonIndexExists = pressedButtonIndices.find(hardwareButtonIndex) != pressedButtonIndices.end();
     if (pressed && !pressedButtonIndexExists) {
