@@ -161,7 +161,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &ZiboRMPProfile::buttonDefs() c
             {9, {"VOR", ""}},
             {10, {"ILS", ""}},
             {11, {"GLS", ""}},
-            {12, {"MLS", kRmpIdent}},
+            {12, {"MLS", ""}},
             {13, {"ADF", ""}},
             {14, {"Knob Large L", p + "freq_MHz/sel_dial_dn"}},
             {15, {"Knob Large R", p + "freq_MHz/sel_dial_up"}},
@@ -182,13 +182,6 @@ void ZiboRMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase 
         return;
     }
 
-    if (button->dataref == kRmpIdent) {
-        if (rmpTcasEnabled("zibo")) {
-            rmpIdent(product, this, "laminar/B738/push_button/transponder_ident_dn", phase);
-        }
-        return;
-    }
-
     if (button->dataref == kTcasModeToggle) {
         if (phase == xplm_CommandBegin && (tcasMode || rmpTcasEnabled("zibo"))) {
             setTcasMode(!tcasMode);
@@ -197,13 +190,19 @@ void ZiboRMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase 
     }
 
     if (tcasMode) {
-        if (phase != xplm_CommandBegin) {
+        if (button->name == "Flip frequencies") {
+            if (phase == xplm_CommandBegin) {
+                swapHold.begin(this, []() {
+                    Dataref::getInstance()->executeCommand("laminar/B738/push_button/transponder_ident_dn");
+                });
+            } else if (phase == xplm_CommandEnd && swapHold.end()) {
+                tcasSwitchSelected = !tcasSwitchSelected;
+                updateDisplays();
+            }
             return;
         }
 
-        if (button->name == "Flip frequencies") {
-            tcasSwitchSelected = !tcasSwitchSelected;
-            updateDisplays();
+        if (phase != xplm_CommandBegin) {
             return;
         }
 

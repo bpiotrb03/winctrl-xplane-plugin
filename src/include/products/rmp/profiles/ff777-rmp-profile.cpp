@@ -130,7 +130,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &FF777RMPProfile::buttonDefs() 
             {9, {"VOR", ""}},
             {10, {"ILS", ""}},
             {11, {"GLS", ""}},
-            {12, {"MLS", kRmpIdent}},
+            {12, {"MLS", ""}},
             {13, {"ADF", ""}},
             {14, {"Knob Large L", std::string("1-sim/command/rad") + rmpName() + "frBigRotary_rotary-"}},
             {15, {"Knob Large R", std::string("1-sim/command/rad") + rmpName() + "frBigRotary_rotary+"}},
@@ -150,13 +150,6 @@ void FF777RMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase
         return;
     }
 
-    if (button->dataref == kRmpIdent) {
-        if (rmpTcasEnabled("ff777")) {
-            rmpIdent(product, this, XPLMFindCommand("1-sim/command/xpndrIdentButton_button") ? "1-sim/command/xpndrIdentButton_button" : "sim/transponder/transponder_ident", phase);
-        }
-        return;
-    }
-
     if (button->dataref == kTcasModeToggle) {
         if (phase == xplm_CommandBegin && (tcasMode || rmpTcasEnabled("ff777"))) {
             setTcasMode(!tcasMode);
@@ -165,13 +158,19 @@ void FF777RMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase
     }
 
     if (tcasMode) {
-        if (phase != xplm_CommandBegin) {
+        if (button->name == "Flip frequencies") {
+            if (phase == xplm_CommandBegin) {
+                swapHold.begin(this, []() {
+                    Dataref::getInstance()->executeCommand(XPLMFindCommand("1-sim/command/xpndrIdentButton_button") ? "1-sim/command/xpndrIdentButton_button" : "sim/transponder/transponder_ident");
+                });
+            } else if (phase == xplm_CommandEnd && swapHold.end()) {
+                tcasSwitchSelected = !tcasSwitchSelected;
+                updateDisplays();
+            }
             return;
         }
 
-        if (button->name == "Flip frequencies") {
-            tcasSwitchSelected = !tcasSwitchSelected;
-            updateDisplays();
+        if (phase != xplm_CommandBegin) {
             return;
         }
 

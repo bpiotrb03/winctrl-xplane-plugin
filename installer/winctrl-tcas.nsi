@@ -23,7 +23,7 @@ ShowInstDetails show
 !define PLUGIN_DIR "$INSTDIR\Resources\plugins\winctrl"
 
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TEXT "Instalator podmienia plugin WINCTRL na wersję z trybem TCAS na RMP3 (ToLiSS, FlightFactor 777 i Zibo 737):$\r$\n$\r$\nLOAD włącza/wyłącza tryb TCAS. Lewy wyświetlacz pokazuje TCAS, prawy squawk. Duże pokrętło zmienia tysiące, małe setki; wciśnięcie pokrętła przełącza na dziesiątki i jedynki. Strzałki pokazują przełącznik trybu TCAS. Kod trafia do samolotu po 3 s bez ruchu pokrętłem.$\r$\n$\r$\nOryginalny winctrl.xpl zostanie zachowany jako winctrl.xpl.bak.$\r$\n$\r$\nZamknij X-Plane przed instalacją."
+!define MUI_WELCOMEPAGE_TEXT "Instalator podmienia plugin WINCTRL na wersję z trybem TCAS na RMP3 (ToLiSS, FlightFactor 777 i Zibo 737):$\r$\n$\r$\nLOAD włącza/wyłącza tryb TCAS. Lewy wyświetlacz pokazuje TCAS, prawy squawk. Duże pokrętło zmienia tysiące, małe setki; wciśnięcie pokrętła przełącza na dziesiątki i jedynki. Strzałki pokazują przełącznik trybu TCAS, a przytrzymanie strzałek przez 3 s wysyła IDENT. Kod trafia do samolotu po 3 s bez ruchu pokrętłem.$\r$\n$\r$\nOryginalny winctrl.xpl zostanie zachowany jako winctrl.xpl.bak.$\r$\n$\r$\nZamknij X-Plane przed instalacją."
 !define MUI_DIRECTORYPAGE_TEXT_TOP "Wskaż główny folder X-Plane 12 (ten, w którym jest X-Plane.exe)."
 !define MUI_COMPONENTSPAGE_NODESC
 

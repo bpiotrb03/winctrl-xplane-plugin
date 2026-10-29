@@ -7,6 +7,7 @@
 #include "product-rmp.h"
 #include "SimpleIni.h"
 
+#include <functional>
 #include <string>
 
 // The installer writes <plugin>/rmp-tcas.ini with one key per aircraft family
@@ -23,20 +24,36 @@ inline bool rmpTcasEnabled(const char *aircraft) {
     return ini.GetBoolValue("aircraft", aircraft, true);
 }
 
-// MLS has no function on any of these panels, so it carries the transponder IDENT.
-// The press is passed through with its phase; MLS lights for the ~18 s an ident lasts.
-inline constexpr const char *kRmpIdent = "winctrl/rmp/ident";
+// In TCAS mode the swap key does two jobs: a short press flips between the squawk
+// and the mode switch, holding it for 3 s sends the transponder IDENT. The short
+// press therefore acts on release, and only when the hold has not fired.
+class RMPHoldButton {
+    private:
+        int pressId = 0;
+        bool held = false;
+        bool fired = false;
 
-inline void rmpIdent(ProductRMP *product, void *owner, const char *command, XPLMCommandPhase phase) {
-    Dataref::getInstance()->executeCommand(command, phase);
-    if (phase != xplm_CommandBegin) {
-        return;
-    }
+    public:
+        static constexpr int kHoldMs = 3000;
 
-    product->setLedBrightness(RMPLed::MLS, 255);
-    AppState::getInstance()->executeAfterDebounced("rmp-ident-led", 18000, owner, [product]() {
-        product->setLedBrightness(RMPLed::MLS, 0);
-    });
-}
+        void begin(void *owner, std::function<void()> onHold) {
+            int id = ++pressId;
+            held = true;
+            fired = false;
+            AppState::getInstance()->executeAfter(kHoldMs, owner, [this, id, onHold]() {
+                if (held && pressId == id) {
+                    fired = true;
+                    onHold();
+                }
+            });
+        }
+
+        // True when the press was short, so the caller runs its tap action.
+        bool end() {
+            bool wasHeld = held;
+            held = false;
+            return wasHeld && !fired;
+        }
+};
 
 #endif
