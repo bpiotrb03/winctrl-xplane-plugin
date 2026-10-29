@@ -5,6 +5,35 @@ For X-Plane 11 and X-Plane 12. Formerly the Winwing plugin for X-Plane.
 This plugin allows you to use WINCTRL devices in X-Plane on MacOS and Linux.
 The plugin theoretically works on Windows, but is not required there, as WINCTRL provides a native Windows driver through the SimAppPro software.
 
+### RMP3 TCAS / squawk mode (this fork)
+
+This fork adds a transponder mode to the WinWing **RMP3** radio management panel, so you can set the squawk, the TCAS mode and IDENT from the RMP without touching the cockpit panel.
+
+**Supported aircraft:** ToLiSS (A319, A320, A321, A330-900, A340-600), FlightFactor 777 v2, 737 (Zibo, Level Up and the default Laminar 737-800). X-Plane 12 on Windows.
+
+#### Install
+
+1. Download the `WINCTRL-RMP-TCAS-<version>-setup.exe` installer from the [releases page](../../releases).
+2. Close X-Plane and run the installer. It finds your X-Plane 12 folder, keeps the original plugin as `winctrl.xpl.bak` and lets you choose:
+   - the aircraft in which the TCAS mode is available,
+   - the RMP key that toggles it (LOAD by default; VHF1-3, HF1/2, AM, NAV, VOR, ILS, GLS, MLS or ADF also work, and that key then loses its radio function),
+   - whether to block Skunkcrafts updates of WINCTRL, which would otherwise overwrite this build.
+3. To remove it, run `uninstall-winctrl-tcas.exe` in `Resources/plugins/winctrl`, which restores the original plugin.
+
+#### Use
+
+| Control | In TCAS mode |
+| --- | --- |
+| LOAD (or your chosen key) | Toggles the TCAS mode on and off. The left window shows `TCAS`, the right one the squawk. |
+| Large knob | Thousands digit (0-7, stops at the ends) |
+| Small knob | Hundreds digit (0-7, stops at the ends) |
+| Knob press | Switches the knobs to the tens and units digits and back |
+| Arrows (short press) | Switches the right window between the squawk and the transponder mode switch |
+| Knobs, with the mode switch shown | Steps the mode switch with end stops: STBY / TA / TARA on the ToLiSS, STBY / ALTOFF / XPNDR / TA / TARA on the 777 and 737. On the A330-900 and A340-600 the ATC switch follows: STBY with STBY, AUTO with TA or TA/RA. |
+| Arrows held for 3 s | Sends IDENT; the right window shows `IDENT` for 3 s |
+
+The new code is set in the aircraft 3 s after the last knob turn. Outside the TCAS mode the RMP works exactly as before.
+
 ### Installation
 
 1. Download the latest release from the releases page.
