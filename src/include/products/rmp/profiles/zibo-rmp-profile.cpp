@@ -29,7 +29,7 @@ namespace {
     };
     constexpr int kTcasSwitchPositions = 5;
     constexpr const char *kSquawkCommitTask = "zibo-rmp-squawk-commit";
-    constexpr int kSquawkCommitDelayMs = 5000;
+    constexpr int kSquawkCommitDelayMs = 3000;
 
     // The segment parser right-aligns, so pad both sides to centre in the six digit window.
     std::string centred(const std::string &text) {

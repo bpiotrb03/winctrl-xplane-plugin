@@ -19,7 +19,7 @@ class FF777RMPProfile : public RMPAircraftProfile {
         // LOAD toggles a transponder mode: the left window shows TCAS, the right
         // one the squawk. The large knob steps the thousands, the small knob the
         // hundreds; a knob press switches them to tens and units. The code is dialled
-        // into the ATC panel's digit knobs after 5 s idle. The swap key shows the
+        // into the ATC panel's digit knobs after 3 s idle. The swap key shows the
         // transponder mode switch on the right window, stepped without wrapping.
         bool tcasMode = false;
         bool tcasSwitchSelected = false;

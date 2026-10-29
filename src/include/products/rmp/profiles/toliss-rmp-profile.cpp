@@ -16,7 +16,7 @@ namespace {
     constexpr const char *kKnobDepress = "winctrl/rmp/knob_depress";
     constexpr const char *kTcasSwitchLabels[] = {"STBY", "TA", "TARA"};
     constexpr const char *kSquawkCommitTask = "toliss-rmp-squawk-commit";
-    constexpr int kSquawkCommitDelayMs = 5000;
+    constexpr int kSquawkCommitDelayMs = 3000;
 
     // The segment parser right-aligns, so pad both sides to centre in the six digit window.
     std::string centred(const std::string &text) {

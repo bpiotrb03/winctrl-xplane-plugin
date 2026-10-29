@@ -18,7 +18,7 @@ class TolissRMPProfile : public RMPAircraftProfile {
         // LOAD toggles a transponder mode: the left window shows TCAS, the right
         // one the squawk. The large knob steps the thousands, the small knob the
         // hundreds; a knob press switches them to tens and units. The code is keyed
-        // into the ATC panel after 5 s idle. The swap key shows the TCAS mode switch
+        // into the ATC panel after 3 s idle. The swap key shows the TCAS mode switch
         // (STBY, TA, TA/RA) on the right window, stepped by either knob without wrapping.
         bool tcasMode = false;
         bool tcasSwitchSelected = false;
