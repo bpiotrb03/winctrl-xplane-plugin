@@ -245,7 +245,13 @@ void TolissRMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhas
     if (tcasMode) {
         if (button->name == "Flip frequencies") {
             if (phase == xplm_CommandBegin) {
-                swapHold.begin(this, []() {
+                swapHold.begin(this, [this]() {
+                    identShown = true;
+                    updateDisplays();
+                    AppState::getInstance()->executeAfterDebounced("rmp-ident-text", 3000, this, [this]() {
+                        identShown = false;
+                        updateDisplays();
+                    });
                     Dataref::getInstance()->executeCommand("sim/transponder/transponder_ident");
                 });
             } else if (phase == xplm_CommandEnd && swapHold.end()) {
@@ -319,7 +325,7 @@ void TolissRMPProfile::updateDisplays() {
             }
         }
 
-        product->setDisplayText(centred("TCAS"), centred(tcasSwitchSelected ? kTcasSwitchLabels[tcasSwitchPosition()] : code));
+        product->setDisplayText(centred("TCAS"), centred(identShown ? "IDENT" : tcasSwitchSelected ? kTcasSwitchLabels[tcasSwitchPosition()] : code));
         return;
     }
 
@@ -429,7 +435,8 @@ void TolissRMPProfile::stepSquawk(bool large, int delta) {
 
     // Large knob: thousands (tens after a knob press). Small knob: hundreds (units).
     int index = (squawkLowerDigits ? 2 : 0) + (large ? 0 : 1);
-    squawkDigits[index] = (squawkDigits[index] + delta + 8) % 8;
+    // Digits stop at 0 and 7 rather than wrapping.
+    squawkDigits[index] = std::clamp(squawkDigits[index] + delta, 0, 7);
 
     AppState::getInstance()->executeAfterDebounced(kSquawkCommitTask, kSquawkCommitDelayMs, this, [this]() {
         commitSquawk();

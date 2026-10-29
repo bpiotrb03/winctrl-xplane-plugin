@@ -22,6 +22,7 @@ class ZiboRMPProfile : public RMPAircraftProfile {
         bool tcasMode = false;
         bool tcasSwitchSelected = false;
         RMPHoldButton swapHold;
+        bool identShown = false; // IDENT on the right window for 3 s after sending it
         bool squawkEditing = false;
         bool squawkLowerDigits = false;
         int squawkDigits[4] = {0, 0, 0, 0};

@@ -23,7 +23,7 @@ ShowInstDetails show
 !define PLUGIN_DIR "$INSTDIR\Resources\plugins\winctrl"
 
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TEXT "This installer replaces the WINCTRL plugin with a build that adds a TCAS/squawk mode to the WinWing RMP3 (ToLiSS, FlightFactor 777 and 737).$\r$\n$\r$\nA key of your choice (LOAD by default) toggles the TCAS mode. The left window shows TCAS, the right one the squawk. The large knob sets the thousands, the small knob the hundreds; pressing the knob switches to tens and units. The arrows show the TCAS mode switch; holding them for 3 s sends IDENT. The code is set in the aircraft 3 s after the last knob turn.$\r$\n$\r$\nThe original winctrl.xpl is kept as winctrl.xpl.bak.$\r$\n$\r$\nClose X-Plane before installing."
+!define MUI_WELCOMEPAGE_TEXT "This installer replaces the WINCTRL plugin with a build that adds a TCAS/squawk mode to the WinWing RMP3 (ToLiSS, FlightFactor 777 and 737).$\r$\n$\r$\nA key of your choice (LOAD by default) toggles the TCAS mode. The left window shows TCAS, the right one the squawk. The large knob sets the thousands, the small knob the hundreds (0 to 7, no wrap-around); pressing the knob switches to tens and units. The arrows show the TCAS mode switch; holding them for 3 s sends IDENT and shows IDENT for 3 s. The code is set in the aircraft 3 s after the last knob turn.$\r$\n$\r$\nThe original winctrl.xpl is kept as winctrl.xpl.bak.$\r$\n$\r$\nClose X-Plane before installing."
 !define MUI_DIRECTORYPAGE_TEXT_TOP "Select the X-Plane 12 root folder (the one containing X-Plane.exe)."
 !define MUI_COMPONENTSPAGE_NODESC
 
