@@ -209,7 +209,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &TolissRMPProfile::buttonDefs()
             {9, {"VOR", std::string("AirbusFBW/") + rmpName() + "/BackupNavVORPress"}},
             {10, {"ILS", std::string("AirbusFBW/") + rmpName() + "/BackupNavILSPress"}},
             {11, {"GLS", std::string("AirbusFBW/") + rmpName() + "/BackupNavBFOPress"}},
-            {12, {"MLS", ""}},
+            {12, {"MLS", kRmpIdent}},
             {13, {"ADF", std::string("AirbusFBW/") + rmpName() + "/BackupNavADFPress"}},
             {14, {"Knob Large L", std::string("AirbusFBW/") + rmpName() + "FreqDownLrg"}},
             {15, {"Knob Large R", std::string("AirbusFBW/") + rmpName() + "FreqUpLrg"}},
@@ -226,6 +226,13 @@ const std::unordered_map<uint16_t, RMPButtonDef> &TolissRMPProfile::buttonDefs()
 
 void TolissRMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase phase) {
     if (!button || button->dataref.empty() || phase == xplm_CommandContinue) {
+        return;
+    }
+
+    if (button->dataref == kRmpIdent) {
+        if (rmpTcasEnabled("toliss")) {
+            rmpIdent(product, this, "sim/transponder/transponder_ident", phase);
+        }
         return;
     }
 
@@ -378,6 +385,8 @@ int TolissRMPProfile::tcasSwitchPosition() const {
 void TolissRMPProfile::setTcasSwitchPosition(int position) {
     if (usesTcasModeDataref()) {
         Dataref::getInstance()->set<int>("AirbusFBW/XPDRTCASMode", position);
+        // The ATC mode switch follows: STBY with TCAS STBY, AUTO with TA or TA/RA.
+        Dataref::getInstance()->set<int>("AirbusFBW/XPDRPower", position == 0 ? 0 : 1);
     } else {
         static constexpr int powerValues[] = {0, 3, 4};
         Dataref::getInstance()->set<int>("AirbusFBW/XPDRPower", powerValues[position]);

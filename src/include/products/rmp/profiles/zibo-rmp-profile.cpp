@@ -161,7 +161,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &ZiboRMPProfile::buttonDefs() c
             {9, {"VOR", ""}},
             {10, {"ILS", ""}},
             {11, {"GLS", ""}},
-            {12, {"MLS", ""}},
+            {12, {"MLS", kRmpIdent}},
             {13, {"ADF", ""}},
             {14, {"Knob Large L", p + "freq_MHz/sel_dial_dn"}},
             {15, {"Knob Large R", p + "freq_MHz/sel_dial_up"}},
@@ -179,6 +179,13 @@ const std::unordered_map<uint16_t, RMPButtonDef> &ZiboRMPProfile::buttonDefs() c
 
 void ZiboRMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase phase) {
     if (!button || button->dataref.empty() || phase == xplm_CommandContinue) {
+        return;
+    }
+
+    if (button->dataref == kRmpIdent) {
+        if (rmpTcasEnabled("zibo")) {
+            rmpIdent(product, this, "laminar/B738/push_button/transponder_ident_dn", phase);
+        }
         return;
     }
 

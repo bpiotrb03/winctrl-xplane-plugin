@@ -14,7 +14,7 @@ namespace {
     constexpr const char *kKnobDepress = "winctrl/rmp/knob_depress";
     constexpr const char *kSquawkDataref = "sim/cockpit/radios/transponder_code";
     constexpr const char *kModeSwitchDataref = "1-sim/ckpt/xpndrModeSwitch/anim";
-    // Positions of the 777 transponder mode switch, as xpndrModeSwitch_set_N.
+    // Positions of the 777 transponder mode switch, as read from its anim dataref.
     constexpr const char *kTcasSwitchLabels[] = {"STBY", "ALTOFF", "XPNDR", "TA", "TARA"};
     constexpr int kTcasSwitchPositions = 5;
     constexpr const char *kSquawkCommitTask = "ff777-rmp-squawk-commit";
@@ -130,7 +130,7 @@ const std::unordered_map<uint16_t, RMPButtonDef> &FF777RMPProfile::buttonDefs() 
             {9, {"VOR", ""}},
             {10, {"ILS", ""}},
             {11, {"GLS", ""}},
-            {12, {"MLS", ""}},
+            {12, {"MLS", kRmpIdent}},
             {13, {"ADF", ""}},
             {14, {"Knob Large L", std::string("1-sim/command/rad") + rmpName() + "frBigRotary_rotary-"}},
             {15, {"Knob Large R", std::string("1-sim/command/rad") + rmpName() + "frBigRotary_rotary+"}},
@@ -147,6 +147,13 @@ const std::unordered_map<uint16_t, RMPButtonDef> &FF777RMPProfile::buttonDefs() 
 
 void FF777RMPProfile::buttonPressed(const RMPButtonDef *button, XPLMCommandPhase phase) {
     if (!button || button->dataref.empty() || phase == xplm_CommandContinue) {
+        return;
+    }
+
+    if (button->dataref == kRmpIdent) {
+        if (rmpTcasEnabled("ff777")) {
+            rmpIdent(product, this, XPLMFindCommand("1-sim/command/xpndrIdentButton_button") ? "1-sim/command/xpndrIdentButton_button" : "sim/transponder/transponder_ident", phase);
+        }
         return;
     }
 
@@ -264,9 +271,19 @@ int FF777RMPProfile::tcasSwitchPosition() const {
     return std::clamp(position, 0, kTcasSwitchPositions - 1);
 }
 
+// The mode switch has no _set_N commands, only steps. Builds differ on the suffix, so take the one that exists.
 void FF777RMPProfile::setTcasSwitchPosition(int position) {
-    std::string command = "1-sim/command/xpndrModeSwitch_set_" + std::to_string(position);
-    Dataref::getInstance()->executeCommand(command.c_str());
+    int steps = position - tcasSwitchPosition();
+    if (steps != 0) {
+        const char *direction = steps > 0 ? "+" : "-";
+        std::string command = std::string("1-sim/command/xpndrModeSwitch_switch") + direction;
+        if (!XPLMFindCommand(command.c_str())) {
+            command = std::string("1-sim/command/xpndrModeSwitch_rotary") + direction;
+        }
+        for (int n = 0; n < std::abs(steps); ++n) {
+            Dataref::getInstance()->executeCommand(command.c_str());
+        }
+    }
 
     updateDisplays();
 }
