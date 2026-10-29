@@ -73,6 +73,10 @@ const char *ZiboRMPProfile::rtpName() const {
 }
 
 ZiboRMPProfile::ZiboRMPProfile(ProductRMP *product) : RMPAircraftProfile(product) {
+    // Read live where a knob step depends on them (the cache can trail a frame behind);
+    // caching them here keeps them polled, so the windows still refresh on a change.
+    Dataref::getInstance()->getCached<int>(kSquawkDataref);
+    Dataref::getInstance()->getCached<float>(kModeSwitchDataref);
     tcasSettings = loadRmpTcasSettings("b737");
 
     std::string statusBase = std::string("laminar/B738/comm/rtp_") + rtpName() + "/";
@@ -310,7 +314,7 @@ void ZiboRMPProfile::updateDisplays() {
 }
 
 std::string ZiboRMPProfile::squawkCode() const {
-    int code = std::clamp(Dataref::getInstance()->getCached<int>(kSquawkDataref), 0, 7777);
+    int code = std::clamp(Dataref::getInstance()->get<int>(kSquawkDataref), 0, 7777);
 
     char buffer[8];
     snprintf(buffer, sizeof(buffer), "%04d", code);
@@ -318,7 +322,7 @@ std::string ZiboRMPProfile::squawkCode() const {
 }
 
 int ZiboRMPProfile::tcasSwitchPosition() const {
-    int position = static_cast<int>(std::lround(Dataref::getInstance()->getCached<float>(kModeSwitchDataref))) - 1;
+    int position = static_cast<int>(std::lround(Dataref::getInstance()->get<float>(kModeSwitchDataref))) - 1;
     return std::clamp(position, 0, kTcasSwitchPositions - 1);
 }
 

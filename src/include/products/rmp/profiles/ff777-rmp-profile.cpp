@@ -68,6 +68,10 @@ const char *FF777RMPProfile::swapCommand() const {
 }
 
 FF777RMPProfile::FF777RMPProfile(ProductRMP *product) : RMPAircraftProfile(product) {
+    // Read live where a knob step depends on them (the cache can trail a frame behind);
+    // caching them here keeps them polled, so the windows still refresh on a change.
+    Dataref::getInstance()->getCached<int>(kSquawkDataref);
+    Dataref::getInstance()->getCached<float>(kModeSwitchDataref);
     tcasSettings = loadRmpTcasSettings("ff777");
 
     _displayDatarefs = {
@@ -264,7 +268,7 @@ void FF777RMPProfile::updateDisplays() {
 
 // The FF777 mirrors its ATC panel code into the default transponder dataref.
 std::string FF777RMPProfile::squawkCode() const {
-    int code = std::clamp(Dataref::getInstance()->getCached<int>(kSquawkDataref), 0, 7777);
+    int code = std::clamp(Dataref::getInstance()->get<int>(kSquawkDataref), 0, 7777);
 
     char buffer[8];
     snprintf(buffer, sizeof(buffer), "%04d", code);
@@ -272,7 +276,7 @@ std::string FF777RMPProfile::squawkCode() const {
 }
 
 int FF777RMPProfile::tcasSwitchPosition() const {
-    int position = static_cast<int>(std::lround(Dataref::getInstance()->getCached<float>(kModeSwitchDataref)));
+    int position = static_cast<int>(std::lround(Dataref::getInstance()->get<float>(kModeSwitchDataref)));
     return std::clamp(position, 0, kTcasSwitchPositions - 1);
 }
 
