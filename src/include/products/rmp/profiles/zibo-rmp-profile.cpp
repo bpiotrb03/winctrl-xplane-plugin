@@ -352,8 +352,8 @@ void ZiboRMPProfile::setTcasMode(bool enabled) {
         commitSquawk();
     }
 
+    // tcasSwitchSelected is kept, so the mode reopens on the page it was left on.
     tcasMode = enabled;
-    tcasSwitchSelected = false;
     squawkLowerDigits = false;
     product->setLedBrightness(tcasSettings.led, enabled ? 255 : 0);
     updateDisplays();

@@ -24,7 +24,7 @@ This fork adds a transponder mode to the WinWing **RMP3** radio management panel
 
 | Control | In TCAS mode |
 | --- | --- |
-| LOAD (or your chosen key) | Toggles the TCAS mode on and off. The left window shows `TCAS`, the right one the squawk. |
+| LOAD (or your chosen key) | Toggles the TCAS mode on and off. The left window shows `TCAS`, the right one the squawk, or the mode switch if that was shown when the mode was last left. |
 | Large knob | Thousands digit (0-7, stops at the ends) |
 | Small knob | Hundreds digit (0-7, stops at the ends) |
 | Knob press | Switches the knobs to the tens and units digits and back |
