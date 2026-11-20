@@ -21,6 +21,7 @@ class TolissRMPProfile : public RMPAircraftProfile {
         // hundreds; a knob press switches them to tens and units. The code is keyed
         // into the ATC panel after 3 s idle. A short press of the swap key shows the TCAS mode switch
         // (STBY, TA, TA/RA) on the right window, stepped by either knob without wrapping.
+        // The page shown (squawk or mode switch) is remembered when the mode is left and re-entered.
         // Holding the swap key for 3 s in this mode sends the transponder IDENT.
         RMPTcasSettings tcasSettings;
         bool tcasMode = false;
